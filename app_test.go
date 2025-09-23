@@ -160,9 +160,7 @@ type CounterIncrementer struct {
 }
 
 func (*CounterIncrementer) Start(ctx context.Context, s *TestState) error {
-	go func() {
-		timedLoop(ctx, s.Interval, func() { s.Counter++ })
-	}()
+	timedLoop(ctx, s.Interval, func() { s.Counter++ })
 	return nil
 }
 
@@ -171,9 +169,7 @@ type CounterPrinter struct {
 }
 
 func (*CounterPrinter) Start(ctx context.Context, s *TestState) error {
-	go func() {
-		timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
-	}()
+	timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
 	return nil
 }
 
