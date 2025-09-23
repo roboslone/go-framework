@@ -133,8 +133,6 @@ type CounterIncrementer struct {
 	framework.Module[State]
 }
 
-var _ framework.ModuleInterface[State] = (*CounterIncrementer)(nil)
-
 func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
 	go func() {
 		timedLoop(ctx, s.Interval, func() { s.Counter++ })
@@ -151,6 +149,12 @@ func (*CounterPrinter) Start(ctx context.Context, s *State) error {
 		timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
 	}()
 	return nil
+}
+
+func (*CounterPrinter) Dependencies(_ context.Context) []string {
+	return []string{
+		"incrementer",
+	}
 }
 
 func timedLoop(ctx context.Context, d time.Duration, fn func()) {
@@ -185,10 +189,11 @@ func TestCustomApp(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		<-time.After(time.Second)
+		<-time.After(s.Interval * 5)
 		cancel()
 	}()
 
-	err = a.Run(ctx, s, "incrementer", "printer")
+	err = a.Run(ctx, s, "printer")
 	require.NoError(t, err)
+	require.GreaterOrEqual(t, s.Counter, 4)
 }

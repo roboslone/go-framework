@@ -59,16 +59,19 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 		log.Log(zapcore.InfoLevel, "cancelling application context", zf...)
 		cancel()
 	}
+
 	<-ctx.Done()
 
 	tearDownCtx := context.Background()
 
-	for _, name := range topology.OrderedModuleNames {
-		log.Log(zapcore.InfoLevel, "waiting for module to stop", append(zf, zap.String("framework.module", name))...)
-		if err := a.Modules[name].Wait(tearDownCtx); err != nil {
-			ae.Errorf("waiting for module: %q.%q: %w", a.Name, name, err)
-		}
-	}
+	a.runStage(
+		[2]string{"wait", "awaiting"},
+		topology,
+		&ae,
+		func(m ModuleInterface[State]) error {
+			return m.Wait(tearDownCtx)
+		},
+	)
 
 	a.runStage(
 		[2]string{"clean up", "cleaning up"},
