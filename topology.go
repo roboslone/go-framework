@@ -73,6 +73,7 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 		if err != nil {
 			return nil, fmt.Errorf("sorting dependencies of %q: %w", root, err)
 		}
+		t.FullDependencies[root] = deps[:len(deps)-1]
 
 		for _, d := range deps {
 			if !accounted.Contains(d) {

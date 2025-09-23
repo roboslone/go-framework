@@ -104,25 +104,25 @@ func (a *Application[State]) runStage(
 		zap.String("framework.application", a.Name),
 	}
 
-	wg := sync.WaitGroup{}
-	conds := make(map[string]*sync.Cond)
+	semaphores := make(map[string]*Semaphore)
 	for _, n := range t.OrderedModuleNames {
-		conds[n] = sync.NewCond(&sync.Mutex{})
-		conds[n].L.Lock()
+		semaphores[n] = NewSemaphore()
 	}
 
+	wg := sync.WaitGroup{}
 	for _, name := range t.OrderedModuleNames {
 		wg.Add(1)
-
 		go func() {
 			defer wg.Done()
-			defer conds[name].L.Unlock()
+			defer semaphores[name].Release()
 
 			mf := append(zf, zap.String("framework.module", name))
 
+			log.Log(zapcore.InfoLevel, fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[1], t.FullDependencies[name]), mf...)
+
 			// wait for dependencies
 			for _, d := range t.FullDependencies[name] {
-				conds[d].Wait()
+				semaphores[d].Wait()
 			}
 
 			// some dependency failed
@@ -137,6 +137,5 @@ func (a *Application[State]) runStage(
 			}
 		}()
 	}
-
 	wg.Wait()
 }

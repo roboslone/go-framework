@@ -2,6 +2,7 @@ package framework_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -196,4 +197,50 @@ func TestCustomApp(t *testing.T) {
 	err = a.Run(ctx, s, "printer")
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, s.Counter, 4)
+}
+
+type DependencyTestModuleA struct {
+	framework.Module[State]
+}
+
+func (*DependencyTestModuleA) Prepare(ctx context.Context, s *State) error {
+	s.Counter = 42
+	return nil
+}
+
+type DependencyTestModuleB struct {
+	framework.Module[State]
+}
+
+func (*DependencyTestModuleB) Dependencies(_ context.Context) []string {
+	return []string{"a"}
+}
+
+func (*DependencyTestModuleB) Prepare(ctx context.Context, s *State) error {
+	if s.Counter != 42 {
+		return fmt.Errorf("expected counter to be 42, got %d", s.Counter)
+	}
+	return nil
+}
+
+func TestDependencies(t *testing.T) {
+	logger, err := zap.NewProduction()
+	require.NoError(t, err)
+	zap.ReplaceGlobals(logger)
+
+	app := framework.Application[State]{
+		Name: t.Name(),
+		Modules: framework.Modules[State]{
+			"a": &DependencyTestModuleA{},
+			"b": &DependencyTestModuleB{},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		<-time.After(100 * time.Millisecond)
+		cancel()
+	}()
+
+	require.NoError(t, app.Run(ctx, &State{}, "b"))
 }
