@@ -12,29 +12,62 @@ import (
 	"go.uber.org/zap"
 )
 
-type TestModule struct {
-	framework.Module[any]
-	Deps []string
+func setupLogging(t *testing.T) {
+	logger, err := zap.NewProduction()
+	require.NoError(t, err)
+	zap.ReplaceGlobals(logger)
 }
 
-var _ framework.ModuleInterface[any] = (*TestModule)(nil)
+type TestState struct {
+	// configuration
+	Interval time.Duration
+
+	// runtime
+	Counter int
+}
+
+type TestModule struct {
+	framework.Module[TestState]
+
+	dependencies []string
+	prepareErr   error
+	startErr     error
+	waitErr      error
+	cleanupErr   error
+}
 
 func (m *TestModule) Dependencies(context.Context) []string {
-	return m.Deps
+	return m.dependencies
+}
+
+func (m *TestModule) Prepare(ctx context.Context, s *TestState) error {
+	return m.prepareErr
+}
+
+func (m *TestModule) Start(ctx context.Context, s *TestState) error {
+	return m.startErr
+}
+
+func (m *TestModule) Wait(ctx context.Context) error {
+	return m.waitErr
+}
+
+func (m *TestModule) Cleanup(ctx context.Context, s *TestState) error {
+	return m.cleanupErr
 }
 
 func NewTestModule(deps ...string) *TestModule {
 	return &TestModule{
-		Deps: deps,
+		dependencies: deps,
 	}
 }
 
 func TestBuildTopology(t *testing.T) {
 	t.Run("cycle", func(t *testing.T) {
 		// a - b - a
-		app := &framework.Application[any]{
+		app := &framework.Application[TestState]{
 			Name: t.Name(),
-			Modules: framework.Modules[any]{
+			Modules: framework.Modules[TestState]{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("a"),
 			},
@@ -46,9 +79,9 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("self-dependency", func(t *testing.T) {
 		// a - a
-		app := &framework.Application[any]{
+		app := &framework.Application[TestState]{
 			Name: t.Name(),
-			Modules: framework.Modules[any]{
+			Modules: framework.Modules[TestState]{
 				"a": NewTestModule("a"),
 			},
 		}
@@ -59,9 +92,9 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("linear", func(t *testing.T) {
 		// a - b - c
-		app := &framework.Application[any]{
+		app := &framework.Application[TestState]{
 			Name: t.Name(),
-			Modules: framework.Modules[any]{
+			Modules: framework.Modules[TestState]{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("c"),
 				"c": NewTestModule(),
@@ -79,9 +112,9 @@ func TestBuildTopology(t *testing.T) {
 		// a     d
 		//  \   /
 		//    c
-		app := &framework.Application[any]{
+		app := &framework.Application[TestState]{
 			Name: t.Name(),
-			Modules: framework.Modules[any]{
+			Modules: framework.Modules[TestState]{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
@@ -100,9 +133,9 @@ func TestBuildTopology(t *testing.T) {
 		// a        e - f    i - j
 		//  \     /      \  /
 		//     b          g
-		app := &framework.Application[any]{
+		app := &framework.Application[TestState]{
 			Name: t.Name(),
-			Modules: framework.Modules[any]{
+			Modules: framework.Modules[TestState]{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
@@ -122,19 +155,11 @@ func TestBuildTopology(t *testing.T) {
 	})
 }
 
-type State struct {
-	// configuration
-	Interval time.Duration
-
-	// runtime
-	Counter int
-}
-
 type CounterIncrementer struct {
-	framework.Module[State]
+	framework.Module[TestState]
 }
 
-func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
+func (*CounterIncrementer) Start(ctx context.Context, s *TestState) error {
 	go func() {
 		timedLoop(ctx, s.Interval, func() { s.Counter++ })
 	}()
@@ -142,10 +167,10 @@ func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
 }
 
 type CounterPrinter struct {
-	framework.Module[State]
+	framework.Module[TestState]
 }
 
-func (*CounterPrinter) Start(ctx context.Context, s *State) error {
+func (*CounterPrinter) Start(ctx context.Context, s *TestState) error {
 	go func() {
 		timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
 	}()
@@ -171,18 +196,16 @@ func timedLoop(ctx context.Context, d time.Duration, fn func()) {
 }
 
 func TestCustomApp(t *testing.T) {
-	logger, err := zap.NewProduction()
-	require.NoError(t, err)
-	zap.ReplaceGlobals(logger)
+	setupLogging(t)
 
-	a := framework.Application[State]{
+	a := framework.Application[TestState]{
 		Name: t.Name(),
-		Modules: framework.Modules[State]{
+		Modules: framework.Modules[TestState]{
 			"incrementer": &CounterIncrementer{},
 			"printer":     &CounterPrinter{},
 		},
 	}
-	s := &State{
+	s := &TestState{
 		Interval: 250 * time.Millisecond,
 	}
 
@@ -194,29 +217,28 @@ func TestCustomApp(t *testing.T) {
 		cancel()
 	}()
 
-	err = a.Run(ctx, s, "printer")
-	require.NoError(t, err)
+	require.NoError(t, a.Run(ctx, s, "printer"))
 	require.GreaterOrEqual(t, s.Counter, 4)
 }
 
 type DependencyTestModuleA struct {
-	framework.Module[State]
+	framework.Module[TestState]
 }
 
-func (*DependencyTestModuleA) Prepare(ctx context.Context, s *State) error {
+func (*DependencyTestModuleA) Prepare(ctx context.Context, s *TestState) error {
 	s.Counter = 42
 	return nil
 }
 
 type DependencyTestModuleB struct {
-	framework.Module[State]
+	framework.Module[TestState]
 }
 
 func (*DependencyTestModuleB) Dependencies(_ context.Context) []string {
 	return []string{"a"}
 }
 
-func (*DependencyTestModuleB) Prepare(ctx context.Context, s *State) error {
+func (*DependencyTestModuleB) Prepare(ctx context.Context, s *TestState) error {
 	if s.Counter != 42 {
 		return fmt.Errorf("expected counter to be 42, got %d", s.Counter)
 	}
@@ -224,13 +246,11 @@ func (*DependencyTestModuleB) Prepare(ctx context.Context, s *State) error {
 }
 
 func TestDependencies(t *testing.T) {
-	logger, err := zap.NewProduction()
-	require.NoError(t, err)
-	zap.ReplaceGlobals(logger)
+	setupLogging(t)
 
-	app := framework.Application[State]{
+	app := framework.Application[TestState]{
 		Name: t.Name(),
-		Modules: framework.Modules[State]{
+		Modules: framework.Modules[TestState]{
 			"a": &DependencyTestModuleA{},
 			"b": &DependencyTestModuleB{},
 		},
@@ -242,5 +262,50 @@ func TestDependencies(t *testing.T) {
 		cancel()
 	}()
 
-	require.NoError(t, app.Run(ctx, &State{}, "b"))
+	require.NoError(t, app.Run(ctx, &TestState{}, "b"))
+}
+
+type TestFiniteModule struct {
+	TestModule
+	done chan struct{}
+}
+
+func (m *TestFiniteModule) Prepare(ctx context.Context, s *TestState) error {
+	m.done = make(chan struct{})
+	return m.TestModule.Prepare(ctx, s)
+}
+
+func (m *TestFiniteModule) Start(ctx context.Context, s *TestState) error {
+	close(m.done)
+	return m.startErr
+}
+
+func (m *TestFiniteModule) Wait(ctx context.Context) error {
+	<-m.done
+	return m.waitErr
+}
+
+func TestFinite(t *testing.T) {
+	setupLogging(t)
+
+	mod := &TestFiniteModule{}
+	app := framework.Application[TestState]{
+		Name: t.Name(),
+		Modules: framework.Modules[TestState]{
+			"finite": mod,
+		},
+	}
+
+	require.NoError(t, app.Run(t.Context(), &TestState{}, "finite"))
+
+	mod.prepareErr = fmt.Errorf("prepare error")
+	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "prepare error")
+
+	mod.prepareErr = nil
+	mod.startErr = fmt.Errorf("start error")
+	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "start error")
+
+	mod.startErr = nil
+	mod.waitErr = fmt.Errorf("wait error")
+	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "wait error")
 }
