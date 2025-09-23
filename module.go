@@ -19,7 +19,7 @@ type ModuleInterface[State any] interface {
 	// Wait is called with a different, non-cancelled context.
 	//
 	// Wait is called for each module, even if module failed to prepare or start.
-	Wait(context.Context) error
+	Wait(context.Context, *State) error
 
 	// Cleanup is called in parallel (respecting dependencies) for each requested module
 	// after application context is cancelled.
@@ -46,7 +46,7 @@ func (*Module[State]) Start(context.Context, *State) error {
 	return nil
 }
 
-func (*Module[State]) Wait(context.Context) error {
+func (*Module[State]) Wait(context.Context, *State) error {
 	return nil
 }
 

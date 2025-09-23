@@ -69,7 +69,7 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 			topology,
 			&ae,
 			func(name string, m ModuleInterface[State]) error {
-				err := m.Wait(tearDownCtx)
+				err := m.Wait(tearDownCtx, s)
 				log.Log(
 					zapcore.InfoLevel,
 					"module completed",

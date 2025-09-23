@@ -48,7 +48,7 @@ func (m *TestModule) Start(ctx context.Context, s *TestState) error {
 	return m.startErr
 }
 
-func (m *TestModule) Wait(ctx context.Context) error {
+func (m *TestModule) Wait(ctx context.Context, s *TestState) error {
 	return m.waitErr
 }
 
@@ -276,7 +276,7 @@ func (m *TestFiniteModule) Start(ctx context.Context, s *TestState) error {
 	return m.startErr
 }
 
-func (m *TestFiniteModule) Wait(ctx context.Context) error {
+func (m *TestFiniteModule) Wait(ctx context.Context, s *TestState) error {
 	<-m.done
 	return m.waitErr
 }
