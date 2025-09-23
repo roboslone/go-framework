@@ -82,7 +82,8 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 		}
 	}
 
-	t.ReverseOrderedModuleNames = t.OrderedModuleNames[:]
+	t.ReverseOrderedModuleNames = make([]string, len(t.OrderedModuleNames))
+	copy(t.ReverseOrderedModuleNames, t.OrderedModuleNames)
 	slices.Reverse(t.ReverseOrderedModuleNames)
 
 	return t, nil
