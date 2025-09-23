@@ -118,7 +118,11 @@ func (a *Application[State]) runStage(
 
 			mf := append(zf, zap.String("framework.module", name))
 
-			log.Log(zapcore.InfoLevel, fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[1], t.FullDependencies[name]), mf...)
+			log.Log(
+				zapcore.DebugLevel,
+				fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[1], t.FullDependencies[name]),
+				mf...,
+			)
 
 			// wait for dependencies
 			for _, d := range t.FullDependencies[name] {
