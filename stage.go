@@ -71,7 +71,7 @@ func (a *Application[State]) runStage(
 			log.Log(zapcore.InfoLevel, fmt.Sprintf("%s module", verbs[stage][1]), mf...)
 			if err := payload(name, a.modules[name]); err != nil {
 				log.Log(zapcore.ErrorLevel, fmt.Sprintf("module failed to %s", verbs[stage][0]), append(mf, zap.Error(err))...)
-				e.err.Errorf("%s module: %q.%q: %w", verbs[stage][1], a.name, name, err)
+				e.err.Append("%s module: %q: %w", verbs[stage][1], name, err)
 			}
 		}()
 	}

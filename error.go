@@ -7,24 +7,33 @@ import (
 )
 
 type AggregatedError struct {
-	lock   sync.RWMutex
-	errors []error
+	appName string
+	lock    sync.RWMutex
+	errors  []error
 }
 
-func (a *AggregatedError) Errorf(format string, m ...any) {
-	a.Append(fmt.Errorf(format, m...))
+func NewAggregatedError(appName string) *AggregatedError {
+	return &AggregatedError{
+		appName: appName,
+	}
 }
 
-func (a *AggregatedError) Append(errs ...error) {
+func (a *AggregatedError) Append(format string, m ...any) *AggregatedError {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.errors = append(a.errors, errs...)
+	a.errors = append(a.errors, fmt.Errorf(format, m...))
+	return a
 }
 
 func (a *AggregatedError) Join() error {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
-	return errors.Join(a.errors...)
+
+	err := errors.Join(a.errors...)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%q: %w", a.appName, err)
 }
 
 func (a *AggregatedError) Empty() bool {

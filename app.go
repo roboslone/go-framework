@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -24,7 +23,7 @@ func NewApplication[State any](name string, modules Modules[State], options ...A
 func (a *Application[State]) Run(ctx context.Context, s *State, modules ...string) error {
 	exec, err := a.Start(ctx, s, modules...)
 	if err != nil {
-		return fmt.Errorf("starting application: %w", err)
+		return err
 	}
 	return exec.Wait()
 }
@@ -40,23 +39,13 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 	log := a.getLogger()
 	log.Log(zapcore.InfoLevel, "starting application", zf...)
 
+	ae := NewAggregatedError(a.name)
 	topology, err := a.BuildTopology(ctx, modules...)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("building topology: %q: %s: %w", a.name, modules, err)
+		return nil, ae.Append("building topology: %s: %w", modules, err).Join()
 	}
-
-	exec := &ExecutionContext{
-		ctx:            ctx,
-		allModulesDone: make(chan struct{}),
-		topology:       topology,
-		stages: map[StageName]*Semaphore{
-			StagePrepare: NewSemaphore(),
-			StageStart:   NewSemaphore(),
-			StageWait:    NewSemaphore(),
-			StageCleanup: NewSemaphore(),
-		},
-	}
+	exec := NewExecutionContext(ctx, topology, ae)
 
 	go func() {
 		defer cancel()
@@ -68,7 +57,7 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 			},
 		)
 
-		if exec.err.Empty() {
+		if ae.Empty() {
 			a.runStage(
 				exec, StageStart,
 				func(_ string, m ModuleInterface[State]) error {
@@ -77,7 +66,7 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 			)
 		}
 
-		if !exec.err.Empty() {
+		if !ae.Empty() {
 			// some module failed to either prepare or start
 			log.Log(zapcore.InfoLevel, "cancelling application context", zf...)
 			cancel()
@@ -103,8 +92,8 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 		}()
 
 		select {
-		case <-allModulesDone:
 		case <-ctx.Done():
+		case <-allModulesDone:
 		}
 
 		a.runStage(

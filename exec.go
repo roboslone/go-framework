@@ -3,18 +3,26 @@ package framework
 import "context"
 
 type ExecutionContext struct {
-	ctx            context.Context
-	allModulesDone chan struct{}
-	topology       *Topology
-	stages         map[StageName]*Semaphore
-	err            AggregatedError
+	topology *Topology
+	stages   map[StageName]*Semaphore
+	err      *AggregatedError
+}
+
+func NewExecutionContext(ctx context.Context, topology *Topology, ae *AggregatedError) *ExecutionContext {
+	return &ExecutionContext{
+		topology: topology,
+		stages: map[StageName]*Semaphore{
+			StagePrepare: NewSemaphore(),
+			StageStart:   NewSemaphore(),
+			StageWait:    NewSemaphore(),
+			StageCleanup: NewSemaphore(),
+		},
+		err: ae,
+	}
 }
 
 func (c *ExecutionContext) Wait() error {
-	select {
-	case <-c.ctx.Done():
-	case <-c.allModulesDone:
-	}
+	c.AwaitStage(StageCleanup)
 	return c.err.Join()
 }
 
