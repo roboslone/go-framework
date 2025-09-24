@@ -65,13 +65,13 @@ func NewTestModule(deps ...string) *TestModule {
 func TestBuildTopology(t *testing.T) {
 	t.Run("cycle", func(t *testing.T) {
 		// a - b - a
-		app := &framework.Application[TestState]{
-			Name: t.Name(),
-			Modules: framework.Modules[TestState]{
+		app := framework.NewApplication(
+			t.Name(),
+			framework.Modules[TestState]{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("a"),
 			},
-		}
+		)
 
 		_, err := app.BuildTopology(t.Context(), "a")
 		require.ErrorContains(t, err, "Cycle error")
@@ -79,12 +79,12 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("self-dependency", func(t *testing.T) {
 		// a - a
-		app := &framework.Application[TestState]{
-			Name: t.Name(),
-			Modules: framework.Modules[TestState]{
+		app := framework.NewApplication(
+			t.Name(),
+			framework.Modules[TestState]{
 				"a": NewTestModule("a"),
 			},
-		}
+		)
 
 		_, err := app.BuildTopology(t.Context(), "a")
 		require.ErrorContains(t, err, "Cycle error")
@@ -92,14 +92,14 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("linear", func(t *testing.T) {
 		// a - b - c
-		app := &framework.Application[TestState]{
-			Name: t.Name(),
-			Modules: framework.Modules[TestState]{
+		app := framework.NewApplication(
+			t.Name(),
+			framework.Modules[TestState]{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("c"),
 				"c": NewTestModule(),
 			},
-		}
+		)
 
 		topology, err := app.BuildTopology(t.Context(), "a")
 		require.NoError(t, err)
@@ -112,15 +112,15 @@ func TestBuildTopology(t *testing.T) {
 		// a     d
 		//  \   /
 		//    c
-		app := &framework.Application[TestState]{
-			Name: t.Name(),
-			Modules: framework.Modules[TestState]{
+		app := framework.NewApplication(
+			t.Name(),
+			framework.Modules[TestState]{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
 				"d": NewTestModule("b", "c"),
 			},
-		}
+		)
 
 		topology, err := app.BuildTopology(t.Context(), "d")
 		require.NoError(t, err)
@@ -133,9 +133,9 @@ func TestBuildTopology(t *testing.T) {
 		// a        e - f    i - j
 		//  \     /      \  /
 		//     b          g
-		app := &framework.Application[TestState]{
-			Name: t.Name(),
-			Modules: framework.Modules[TestState]{
+		app := framework.NewApplication(
+			t.Name(),
+			framework.Modules[TestState]{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
@@ -147,7 +147,7 @@ func TestBuildTopology(t *testing.T) {
 				"i": NewTestModule("h", "g"),
 				"j": NewTestModule("i"),
 			},
-		}
+		)
 
 		topology, err := app.BuildTopology(t.Context(), "j")
 		require.NoError(t, err)
@@ -194,13 +194,13 @@ func timedLoop(ctx context.Context, d time.Duration, fn func()) {
 func TestCustomApp(t *testing.T) {
 	setupLogging(t)
 
-	a := framework.Application[TestState]{
-		Name: t.Name(),
-		Modules: framework.Modules[TestState]{
+	a := framework.NewApplication(
+		t.Name(),
+		framework.Modules[TestState]{
 			"incrementer": &CounterIncrementer{},
 			"printer":     &CounterPrinter{},
 		},
-	}
+	)
 	s := &TestState{
 		Interval: 250 * time.Millisecond,
 	}
@@ -244,13 +244,13 @@ func (*DependencyTestModuleB) Prepare(ctx context.Context, s *TestState) error {
 func TestDependencies(t *testing.T) {
 	setupLogging(t)
 
-	app := framework.Application[TestState]{
-		Name: t.Name(),
-		Modules: framework.Modules[TestState]{
+	app := framework.NewApplication(
+		t.Name(),
+		framework.Modules[TestState]{
 			"a": &DependencyTestModuleA{},
 			"b": &DependencyTestModuleB{},
 		},
-	}
+	)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
@@ -285,12 +285,12 @@ func TestFinite(t *testing.T) {
 	setupLogging(t)
 
 	mod := &TestFiniteModule{}
-	app := framework.Application[TestState]{
-		Name: t.Name(),
-		Modules: framework.Modules[TestState]{
+	app := framework.NewApplication(
+		t.Name(),
+		framework.Modules[TestState]{
 			"finite": mod,
 		},
-	}
+	)
 
 	require.NoError(t, app.Run(t.Context(), &TestState{}, "finite"))
 

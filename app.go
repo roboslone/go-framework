@@ -10,9 +10,18 @@ import (
 )
 
 type Application[State any] struct {
-	Name    string
-	Logger  Logger
-	Modules Modules[State]
+	logger     Logger
+	name       string
+	modules    Modules[State]
+	stagesLock sync.RWMutex
+	stages     map[StageName]*Semaphore
+}
+
+func NewApplication[State any](name string, modules Modules[State], options ...ApplicationOption[State]) *Application[State] {
+	return &Application[State]{
+		name:    name,
+		modules: modules,
+	}
 }
 
 func (a *Application[State]) Run(ctx context.Context, s *State, modules ...string) error {
@@ -20,8 +29,10 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
+	a.initStages()
+
 	zf := []zap.Field{
-		zap.String("framework.application", a.Name),
+		zap.String("framework.application", a.name),
 	}
 
 	log := a.getLogger()
@@ -29,15 +40,13 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 
 	topology, err := a.BuildTopology(ctx, modules...)
 	if err != nil {
-		return fmt.Errorf("building topology: %q: %s: %w", a.Name, modules, err)
+		return fmt.Errorf("building topology: %q: %s: %w", a.name, modules, err)
 	}
 
-	var ae AggregatedError
+	ae := &AggregatedError{}
 
 	a.runStage(
-		[2]string{"prepare", "preparing"},
-		topology,
-		&ae,
+		StagePrepare, topology, ae,
 		func(_ string, m ModuleInterface[State]) error {
 			return m.Prepare(ctx, s)
 		},
@@ -45,9 +54,7 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 
 	if ae.Empty() {
 		a.runStage(
-			[2]string{"start", "starting"},
-			topology,
-			&ae,
+			StageStart, topology, ae,
 			func(_ string, m ModuleInterface[State]) error {
 				return m.Start(ctx, s)
 			},
@@ -65,9 +72,7 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 	allModulesDone := make(chan struct{})
 	go func() {
 		a.runStage(
-			[2]string{"complete", "awaiting"},
-			topology,
-			&ae,
+			StageWait, topology, ae,
 			func(name string, m ModuleInterface[State]) error {
 				err := m.Wait(tearDownCtx, s)
 				log.Log(
@@ -87,9 +92,7 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 	}
 
 	a.runStage(
-		[2]string{"clean up", "cleaning up"},
-		topology,
-		&ae,
+		StageCleanup, topology, ae,
 		func(_ string, m ModuleInterface[State]) error {
 			return m.Cleanup(tearDownCtx, s)
 		},
@@ -98,61 +101,27 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 	return ae.Join()
 }
 
-func (a *Application[State]) getLogger() Logger {
-	if a.Logger == nil {
-		return zap.L()
-	}
-	return a.Logger
+func (a *Application[State]) AwaitStage(name StageName) {
+	a.stagesLock.RLock()
+	s := a.stages[name]
+	a.stagesLock.RUnlock()
+	s.Wait()
 }
 
-func (a *Application[State]) runStage(
-	verbs [2]string,
-	t *Topology[State],
-	ae *AggregatedError,
-	payload func(string, ModuleInterface[State]) error,
-) {
-	log := a.getLogger()
-
-	zf := []zap.Field{
-		zap.String("framework.application", a.Name),
+func (a *Application[State]) getLogger() Logger {
+	if a.logger == nil {
+		return zap.L()
 	}
+	return a.logger
+}
 
-	semaphores := make(map[string]*Semaphore)
-	for _, n := range t.OrderedModuleNames {
-		semaphores[n] = NewSemaphore()
+func (a *Application[State]) initStages() {
+	a.stagesLock.Lock()
+	defer a.stagesLock.Unlock()
+	a.stages = map[StageName]*Semaphore{
+		StagePrepare: NewSemaphore(),
+		StageStart:   NewSemaphore(),
+		StageWait:    NewSemaphore(),
+		StageCleanup: NewSemaphore(),
 	}
-
-	wg := sync.WaitGroup{}
-	for _, name := range t.OrderedModuleNames {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer semaphores[name].Release()
-
-			mf := append(zf, zap.String("framework.module", name))
-
-			log.Log(
-				zapcore.DebugLevel,
-				fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[1], t.FullDependencies[name]),
-				mf...,
-			)
-
-			// wait for dependencies
-			for _, d := range t.FullDependencies[name] {
-				semaphores[d].Wait()
-			}
-
-			// some dependency failed
-			if !ae.Empty() {
-				return
-			}
-
-			log.Log(zapcore.InfoLevel, fmt.Sprintf("%s module", verbs[1]), mf...)
-			if err := payload(name, a.Modules[name]); err != nil {
-				log.Log(zapcore.ErrorLevel, fmt.Sprintf("module failed to %s", verbs[0]), append(mf, zap.Error(err))...)
-				ae.Errorf("%s module: %q.%q: %w", verbs[1], a.Name, name, err)
-			}
-		}()
-	}
-	wg.Wait()
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/stevenle/topsort/v2"
 )
 
-type Topology[State any] struct {
+type Topology struct {
 	RequestedModuleNames      []string
 	Graph                     *topsort.Graph[string]
 	OrderedModuleNames        []string
@@ -18,8 +18,8 @@ type Topology[State any] struct {
 	FullDependencies          map[string][]string
 }
 
-func (a *Application[State]) BuildTopology(ctx context.Context, requested ...string) (*Topology[State], error) {
-	t := &Topology[State]{
+func (a *Application[State]) BuildTopology(ctx context.Context, requested ...string) (*Topology, error) {
+	t := &Topology{
 		RequestedModuleNames: requested,
 		Graph:                topsort.NewGraph[string](),
 		DirectDependencies:   make(map[string][]string),
@@ -39,7 +39,7 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 				continue
 			}
 
-			module, ok := a.Modules[name]
+			module, ok := a.modules[name]
 			if !ok {
 				return nil, fmt.Errorf("module not registered: %q", name)
 			}
@@ -61,7 +61,9 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 
 	for m, deps := range t.DirectDependencies {
 		for _, d := range deps {
-			t.Graph.AddEdge(m, d)
+			if err := t.Graph.AddEdge(m, d); err != nil {
+				return nil, fmt.Errorf("defining graph edge: %q -> %q: %w", m, d, err)
+			}
 		}
 	}
 
