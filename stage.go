@@ -27,12 +27,11 @@ var (
 )
 
 func (a *Application[State]) runStage(
+	e *ExecutionContext,
 	stage StageName,
-	t *Topology,
-	ae *AggregatedError,
 	payload func(string, ModuleInterface[State]) error,
 ) {
-	defer a.stages[stage].Release()
+	defer e.stages[stage].Release()
 
 	log := a.getLogger()
 	zf := []zap.Field{
@@ -40,12 +39,12 @@ func (a *Application[State]) runStage(
 	}
 
 	semaphores := make(map[string]*Semaphore)
-	for _, n := range t.OrderedModuleNames {
+	for _, n := range e.topology.OrderedModuleNames {
 		semaphores[n] = NewSemaphore()
 	}
 
 	wg := sync.WaitGroup{}
-	for _, name := range t.OrderedModuleNames {
+	for _, name := range e.topology.OrderedModuleNames {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -55,24 +54,24 @@ func (a *Application[State]) runStage(
 
 			log.Log(
 				zapcore.DebugLevel,
-				fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[stage][1], t.FullDependencies[name]),
+				fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[stage][1], e.topology.FullDependencies[name]),
 				mf...,
 			)
 
 			// wait for dependencies
-			for _, d := range t.FullDependencies[name] {
+			for _, d := range e.topology.FullDependencies[name] {
 				semaphores[d].Wait()
 			}
 
 			// some dependency failed
-			if !ae.Empty() {
+			if !e.err.Empty() {
 				return
 			}
 
 			log.Log(zapcore.InfoLevel, fmt.Sprintf("%s module", verbs[stage][1]), mf...)
 			if err := payload(name, a.modules[name]); err != nil {
 				log.Log(zapcore.ErrorLevel, fmt.Sprintf("module failed to %s", verbs[stage][0]), append(mf, zap.Error(err))...)
-				ae.Errorf("%s module: %q.%q: %w", verbs[stage][1], a.name, name, err)
+				e.err.Errorf("%s module: %q.%q: %w", verbs[stage][1], a.name, name, err)
 			}
 		}()
 	}
