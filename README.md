@@ -50,13 +50,13 @@ func (*CounterPrinter) Dependencies(_ context.Context) []string {
 }
 
 // App contains all available modules and their dependencies.
-var App = framework.Application[State]{
-    Name: "counter",
-    Modules: framework.Modules[State]{
+var App = framework.NewApplication(
+    "counter",
+    framework.Modules[State]{
         "incrementer": &CounterIncrementer{},
         "printer":     &CounterPrinter{},
     },
-}
+)
 
 // Prepares and starts both `incrementer` and `printer`.
 App.Run(context.Background(), "printer")
