@@ -3,64 +3,12 @@ package framework_test
 import (
 	"context"
 	"fmt"
-	"log"
 	"testing"
-	"time"
 
 	framework "github.com/roboslone/go-framework"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
-
-func setupLogging(t *testing.T) {
-	logger, err := zap.NewProduction()
-	require.NoError(t, err)
-	zap.ReplaceGlobals(logger)
-}
-
-type TestState struct {
-	// configuration
-	Interval time.Duration
-
-	// runtime
-	Counter int
-}
-
-type TestModule struct {
-	framework.Module[TestState]
-
-	dependencies []string
-	prepareErr   error
-	startErr     error
-	waitErr      error
-	cleanupErr   error
-}
-
-func (m *TestModule) Dependencies(context.Context) []string {
-	return m.dependencies
-}
-
-func (m *TestModule) Prepare(ctx context.Context, s *TestState) error {
-	return m.prepareErr
-}
-
-func (m *TestModule) Start(ctx context.Context, s *TestState) error {
-	return m.startErr
-}
-
-func (m *TestModule) Wait(ctx context.Context, s *TestState) error {
-	return m.waitErr
-}
-
-func (m *TestModule) Cleanup(ctx context.Context, s *TestState) error {
-	return m.cleanupErr
-}
-
-func NewTestModule(deps ...string) *TestModule {
-	return &TestModule{
-		dependencies: deps,
-	}
-}
 
 func TestBuildTopology(t *testing.T) {
 	t.Run("cycle", func(t *testing.T) {
@@ -155,153 +103,120 @@ func TestBuildTopology(t *testing.T) {
 	})
 }
 
-type CounterIncrementer struct {
-	framework.Module[TestState]
-}
-
-func (*CounterIncrementer) Start(ctx context.Context, s *TestState) error {
-	timedLoop(ctx, s.Interval, func() { s.Counter++ })
-	return nil
-}
-
-type CounterPrinter struct {
-	framework.Module[TestState]
-}
-
-func (*CounterPrinter) Start(ctx context.Context, s *TestState) error {
-	timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
-	return nil
-}
-
-func (*CounterPrinter) Dependencies(_ context.Context) []string {
-	return []string{
-		"incrementer",
-	}
-}
-
-func timedLoop(ctx context.Context, d time.Duration, fn func()) {
-	t := time.NewTicker(d).C
-	for {
-		select {
-		case <-t:
-			fn()
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func TestCustomApp(t *testing.T) {
-	setupLogging(t)
-
-	a := framework.NewApplication(
-		t.Name(),
-		framework.Modules[TestState]{
-			"incrementer": &CounterIncrementer{},
-			"printer":     &CounterPrinter{},
-		},
-	)
-	s := &TestState{
-		Interval: 250 * time.Millisecond,
-	}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	go func() {
-		<-time.After(s.Interval * 5)
-		cancel()
-	}()
-
-	require.NoError(t, a.Run(ctx, s, "printer"))
-	require.GreaterOrEqual(t, s.Counter, 4)
-}
-
-type DependencyTestModuleA struct {
-	framework.Module[TestState]
-}
-
-func (*DependencyTestModuleA) Prepare(ctx context.Context, s *TestState) error {
-	s.Counter = 42
-	return nil
-}
-
-type DependencyTestModuleB struct {
-	framework.Module[TestState]
-}
-
-func (*DependencyTestModuleB) Dependencies(_ context.Context) []string {
-	return []string{"a"}
-}
-
-func (*DependencyTestModuleB) Prepare(ctx context.Context, s *TestState) error {
-	if s.Counter != 42 {
-		return fmt.Errorf("expected counter to be 42, got %d", s.Counter)
-	}
-	return nil
-}
-
-func TestDependencies(t *testing.T) {
-	setupLogging(t)
-
+func TestInStageDependencies(t *testing.T) {
 	app := framework.NewApplication(
 		t.Name(),
 		framework.Modules[TestState]{
-			"a": &DependencyTestModuleA{},
-			"b": &DependencyTestModuleB{},
+			"a": &TestModule{
+				onPrepare: func(ctx context.Context, ts *TestState) error {
+					ts.Value = 42
+					return nil
+				},
+				onStart: func(ctx context.Context, ts *TestState) error {
+					ts.Value = 69
+					return nil
+				},
+				onWait: func(ctx context.Context, ts *TestState) error {
+					ts.Value = 420
+					return nil
+				},
+				onCleanup: func(ctx context.Context, ts *TestState) error {
+					ts.Value = 0
+					return nil
+				},
+			},
+			"b": &TestModule{
+				onPrepare: func(ctx context.Context, ts *TestState) error {
+					assert.Equal(t, 42, ts.Value, "prepare")
+					return nil
+				},
+				onStart: func(ctx context.Context, ts *TestState) error {
+					assert.Equal(t, 69, ts.Value, "start")
+					return nil
+				},
+				onWait: func(ctx context.Context, ts *TestState) error {
+					assert.Equal(t, 420, ts.Value, "start")
+					return nil
+				},
+				onCleanup: func(ctx context.Context, ts *TestState) error {
+					assert.Equal(t, 0, ts.Value, "start")
+					return nil
+				},
+				dependencies: []string{"a"},
+			},
 		},
 	)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	go func() {
-		<-time.After(100 * time.Millisecond)
-		cancel()
-	}()
-
-	require.NoError(t, app.Run(ctx, &TestState{}, "b"))
+	require.NoError(t, app.Run(t.Context(), &TestState{}, "b"))
 }
 
-type TestFiniteModule struct {
-	TestModule
-	done chan struct{}
-}
-
-func (m *TestFiniteModule) Prepare(ctx context.Context, s *TestState) error {
-	m.done = make(chan struct{})
-	return m.TestModule.Prepare(ctx, s)
-}
-
-func (m *TestFiniteModule) Start(ctx context.Context, s *TestState) error {
-	close(m.done)
-	return m.startErr
-}
-
-func (m *TestFiniteModule) Wait(ctx context.Context, s *TestState) error {
-	<-m.done
-	return m.waitErr
-}
-
-func TestFinite(t *testing.T) {
-	setupLogging(t)
-
-	mod := &TestFiniteModule{}
+func TestErrors(t *testing.T) {
+	mFinite := &TestModule{}
+	mInfinite := &TestContextBoundModule{}
 	app := framework.NewApplication(
 		t.Name(),
 		framework.Modules[TestState]{
-			"finite": mod,
+			"finite":   mFinite,
+			"infinite": mInfinite,
 		},
 	)
 
-	require.NoError(t, app.Run(t.Context(), &TestState{}, "finite"))
+	t.Run("finite", func(t *testing.T) {
+		t.Run("none", func(t *testing.T) {
+			require.NoError(t, app.Run(t.Context(), &TestState{}, "finite"))
+		})
 
-	mod.prepareErr = fmt.Errorf("prepare error")
-	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "prepare error")
+		t.Run("prepare", func(t *testing.T) {
+			mFinite.SetErrors(fmt.Errorf("prepare error"), nil, nil, nil)
+			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "prepare error")
+		})
 
-	mod.prepareErr = nil
-	mod.startErr = fmt.Errorf("start error")
-	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "start error")
+		t.Run("start", func(t *testing.T) {
+			mFinite.SetErrors(nil, fmt.Errorf("start error"), nil, nil)
+			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "start error")
+		})
 
-	mod.startErr = nil
-	mod.waitErr = fmt.Errorf("wait error")
-	require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "wait error")
+		t.Run("wait", func(t *testing.T) {
+			mFinite.SetErrors(nil, nil, fmt.Errorf("wait error"), nil)
+			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "wait error")
+		})
+
+		t.Run("cleanup", func(t *testing.T) {
+			mFinite.SetErrors(nil, nil, nil, fmt.Errorf("cleanup error"))
+			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "cleanup error")
+		})
+	})
+
+	t.Run("infinite", func(t *testing.T) {
+		t.Run("none", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			require.NoError(t, app.Run(ctx, &TestState{}, "infinite"))
+		})
+
+		t.Run("prepare", func(t *testing.T) {
+			mInfinite.SetErrors(fmt.Errorf("prepare error"), nil, nil, nil)
+			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "infinite"), "prepare error")
+		})
+
+		t.Run("start", func(t *testing.T) {
+			mInfinite.SetErrors(nil, fmt.Errorf("start error"), nil, nil)
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "start error")
+		})
+
+		t.Run("wait", func(t *testing.T) {
+			mInfinite.SetErrors(nil, nil, fmt.Errorf("wait error"), nil)
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "wait error")
+		})
+
+		t.Run("cleanup", func(t *testing.T) {
+			mInfinite.SetErrors(nil, nil, nil, fmt.Errorf("cleanup error"))
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "cleanup error")
+		})
+	})
 }

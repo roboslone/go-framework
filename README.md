@@ -23,7 +23,6 @@ type CounterIncrementer struct {
 
 func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
 	go func() {
-        // timedLoop implementation can be found in `app_test.go`
 		timedLoop(ctx, s.Interval, func() { s.Counter++ })
 	}()
 	return nil
@@ -37,7 +36,6 @@ type CounterPrinter struct {
 
 func (*CounterPrinter) Start(ctx context.Context, s *State) error {
 	go func() {
-        // timedLoop implementation can be found in `app_test.go`
 		timedLoop(ctx, s.Interval, func() { log.Println(s.Counter) })
 	}()
 	return nil
@@ -46,6 +44,20 @@ func (*CounterPrinter) Start(ctx context.Context, s *State) error {
 func (*CounterPrinter) Dependencies(_ context.Context) []string {
 	return []string{
 		"incrementer",
+	}
+}
+
+func timedLoop(ctx context.Context, d time.Duration, fn func()) {
+	ticker := time.NewTicker(d)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			fn()
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

@@ -68,38 +68,27 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 
 		if !ae.Empty() {
 			// some module failed to either prepare or start
-			log.Log(zapcore.InfoLevel, "cancelling application context", zf...)
+			log.Log(zapcore.InfoLevel, "cancelling application context", append(zf, zap.Error(ae.Join()))...)
 			cancel()
 		}
 
-		tearDownCtx := context.Background()
-
-		allModulesDone := make(chan struct{})
-		go func() {
-			a.runStage(
-				exec, StageWait,
-				func(name string, m ModuleInterface[State]) error {
-					err := m.Wait(tearDownCtx, s)
-					log.Log(
-						zapcore.InfoLevel,
-						"module completed",
-						append(zf, zap.String("framework.module", name), zap.Error(err))...,
-					)
-					return err
-				},
-			)
-			close(allModulesDone)
-		}()
-
-		select {
-		case <-ctx.Done():
-		case <-allModulesDone:
-		}
+		a.runStage(
+			exec, StageWait,
+			func(name string, m ModuleInterface[State]) error {
+				err := m.Wait(ctx, s)
+				log.Log(
+					zapcore.InfoLevel,
+					"module completed",
+					append(zf, zap.String("framework.module", name), zap.Error(err))...,
+				)
+				return err
+			},
+		)
 
 		a.runStage(
 			exec, StageCleanup,
 			func(_ string, m ModuleInterface[State]) error {
-				return m.Cleanup(tearDownCtx, s)
+				return m.Cleanup(context.Background(), s)
 			},
 		)
 	}()

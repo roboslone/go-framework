@@ -36,7 +36,10 @@ func (a *Application[State]) runStage(
 	log := a.getLogger()
 	zf := []zap.Field{
 		zap.String("framework.application", a.name),
+		zap.String("framework.stage", string(stage)),
 	}
+
+	log.Log(zapcore.DebugLevel, "beginning stage", zf...)
 
 	semaphores := make(map[string]*Semaphore)
 	for _, n := range e.topology.OrderedModuleNames {
@@ -52,15 +55,17 @@ func (a *Application[State]) runStage(
 
 			mf := append(zf, zap.String("framework.module", name))
 
-			log.Log(
-				zapcore.DebugLevel,
-				fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[stage][1], e.topology.FullDependencies[name]),
-				mf...,
-			)
+			if len(e.topology.FullDependencies[name]) > 0 {
+				log.Log(
+					zapcore.DebugLevel,
+					fmt.Sprintf("%s module: waiting for dependencies: %s", verbs[stage][1], e.topology.FullDependencies[name]),
+					mf...,
+				)
 
-			// wait for dependencies
-			for _, d := range e.topology.FullDependencies[name] {
-				semaphores[d].Wait()
+				// wait for dependencies
+				for _, d := range e.topology.FullDependencies[name] {
+					semaphores[d].Wait()
+				}
 			}
 
 			// some dependency failed
