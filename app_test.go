@@ -220,3 +220,31 @@ func TestErrors(t *testing.T) {
 		})
 	})
 }
+
+func TestContext(t *testing.T) {
+	app := framework.NewApplication(t.Name(), framework.Modules[TestState]{
+		"m": &TestModule{
+			onPrepare: func(ctx context.Context, _ *TestState) error {
+				assert.Equal(t, t.Name(), framework.GetApplicationName(ctx), "prepare")
+				assert.Equal(t, "m", framework.GetModuleName(ctx), "prepare")
+				return nil
+			},
+			onStart: func(ctx context.Context, _ *TestState) error {
+				assert.Equal(t, t.Name(), framework.GetApplicationName(ctx), "start")
+				assert.Equal(t, "m", framework.GetModuleName(ctx), "start")
+				return nil
+			},
+			onWait: func(ctx context.Context, _ *TestState) error {
+				assert.Equal(t, t.Name(), framework.GetApplicationName(ctx), "wait")
+				assert.Equal(t, "m", framework.GetModuleName(ctx), "wait")
+				return nil
+			},
+			onCleanup: func(ctx context.Context, _ *TestState) error {
+				assert.Equal(t, t.Name(), framework.GetApplicationName(ctx), "cleanup")
+				assert.Equal(t, "m", framework.GetModuleName(ctx), "cleanup")
+				return nil
+			},
+		},
+	})
+	require.NoError(t, app.Run(t.Context(), &TestState{}, "m"))
+}

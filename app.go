@@ -30,7 +30,7 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 
 func (a *Application[State]) Start(ctx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
 	var cancel context.CancelFunc
-	ctx, cancel = context.WithCancel(ctx)
+	ctx, cancel = context.WithCancel(applicationContext(ctx, a.name))
 
 	zf := []zap.Field{
 		zap.String("framework.application", a.name),
@@ -52,16 +52,16 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 
 		a.runStage(
 			exec, StagePrepare,
-			func(_ string, m ModuleInterface[State]) error {
-				return m.Prepare(ctx, s)
+			func(name string, m ModuleInterface[State]) error {
+				return m.Prepare(moduleContext(ctx, name), s)
 			},
 		)
 
 		if ae.Empty() {
 			a.runStage(
 				exec, StageStart,
-				func(_ string, m ModuleInterface[State]) error {
-					return m.Start(ctx, s)
+				func(name string, m ModuleInterface[State]) error {
+					return m.Start(moduleContext(ctx, name), s)
 				},
 			)
 		}
@@ -75,7 +75,7 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 		a.runStage(
 			exec, StageWait,
 			func(name string, m ModuleInterface[State]) error {
-				err := m.Wait(ctx, s)
+				err := m.Wait(moduleContext(ctx, name), s)
 				log.Log(
 					zapcore.InfoLevel,
 					"module completed",
@@ -87,8 +87,10 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 
 		a.runStage(
 			exec, StageCleanup,
-			func(_ string, m ModuleInterface[State]) error {
-				return m.Cleanup(context.Background(), s)
+			func(name string, m ModuleInterface[State]) error {
+				ctx := applicationContext(context.Background(), a.name)
+				ctx = moduleContext(ctx, name)
+				return m.Cleanup(ctx, s)
 			},
 		)
 	}()
