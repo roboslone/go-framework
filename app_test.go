@@ -248,3 +248,12 @@ func TestContext(t *testing.T) {
 	})
 	require.NoError(t, app.Run(t.Context(), &TestState{}, "m"))
 }
+
+func TestCommandModule(t *testing.T) {
+	app := framework.NewApplication(t.Name(), framework.Modules[TestState]{
+		"cmd": &framework.CommandModule[TestState]{
+			Command: []string{"echo", "hello"},
+		},
+	})
+	require.NoError(t, app.Run(t.Context(), &TestState{}, "cmd"))
+}
