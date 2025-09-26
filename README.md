@@ -2,6 +2,11 @@
 
 A way to structure your application modules.
 
+<img width="573" height="435" alt="Screenshot 2025-09-26 at 10 14 57" src="https://github.com/user-attachments/assets/3e67e0f7-dd48-4ca0-98e5-80d216e86749" />
+
+^ Output of internal [tool](https://github.com/roboslone/go-framework/blob/main/.tools/main.go#L13) built on `go-framework`.  
+Linting and testing are done in parallel.
+
 ## Example
 
 ```go
