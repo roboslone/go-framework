@@ -27,4 +27,4 @@ jobs:
                   imageName: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-devcontainer
                   cacheFrom: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-devcontainer
                   push: always
-                  runCmd: .devcontainer/scripts/ci.sh
+                  runCmd: go run ./.tools ci
