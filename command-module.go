@@ -14,9 +14,10 @@ import (
 type CommandModule[State any] struct {
 	Module[State]
 
-	Command []string
-	Dir     string
-	Env     []string
+	Command   []string
+	Dir       string
+	Env       []string
+	DependsOn []string
 }
 
 func (m *CommandModule[State]) Start(ctx context.Context, s *State) error {
@@ -65,4 +66,8 @@ func (m *CommandModule[State]) Start(ctx context.Context, s *State) error {
 	fmt.Println()
 
 	return err
+}
+
+func (m *CommandModule[State]) Dependencies(context.Context) []string {
+	return m.DependsOn
 }
