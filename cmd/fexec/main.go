@@ -6,12 +6,24 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/roboslone/go-framework"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	discoverMaxDepth = 7
+)
+
+var (
+	discoverNames = []string{
+		".fexec.yaml",
+		".fexec.yml",
+	}
 )
 
 type CommandConfig struct {
@@ -45,12 +57,23 @@ func (cfg *CommandConfig) PrintUsage() {
 func main() {
 	fs := flag.NewFlagSet("fexec", flag.ContinueOnError)
 
-	configPath := fs.String("c", ".fexec.yaml", "Path to config file")
+	wd := "."
+	configPath := fs.String("c", "", "Path to config file")
 
 	flagErr := fs.Parse(os.Args[1:])
 	printUsage := errors.Is(flagErr, flag.ErrHelp) || len(os.Args) == 1
 	if !printUsage && flagErr != nil {
 		log.Fatalf("parsing options: %s", flagErr)
+	}
+
+	if *configPath == "" {
+		var err error
+		*configPath, err = DiscoverConfigPath()
+		if err != nil {
+			log.Fatalf("discovering config path: %s", err)
+		}
+
+		wd = filepath.Dir(*configPath)
 	}
 
 	cfg, err := ParseConfig(*configPath)
@@ -76,6 +99,12 @@ func main() {
 		if len(module.Command) == 0 && module.Dir == "" && len(module.Env) == 0 {
 			modules[name] = &framework.NoopModule{DependsOn: module.DependsOn}
 			continue
+		}
+
+		if module.Dir == "" {
+			module.Dir = wd
+		} else if !filepath.IsAbs(module.Dir) {
+			module.Dir = filepath.Join(wd, module.Dir)
 		}
 
 		modules[name] = &framework.CommandModule[any]{
@@ -112,4 +141,27 @@ func SetupCommonEnv() error {
 		}
 	}
 	return nil
+}
+
+func DiscoverConfigPath() (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("getwd: %w", err)
+	}
+
+	for depth := 0; depth < discoverMaxDepth; depth++ {
+		for _, name := range discoverNames {
+			path := fmt.Sprintf("%s/%s", wd, name)
+
+			if _, err = os.Stat(path); err == nil {
+				return path, nil
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				return "", fmt.Errorf("stat %q: %w", path, err)
+			}
+		}
+		wd = filepath.Dir(wd)
+	}
+
+	return "", fmt.Errorf("file not found (searched for %s)", strings.Join(discoverNames, ", "))
 }
