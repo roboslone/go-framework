@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/roboslone/go-framework"
@@ -66,8 +67,11 @@ func main() {
 		return
 	}
 
-	modules := framework.Modules{}
+	commonEnv := []string{
+		fmt.Sprintf("NOW=%s", time.Now().Format(time.RFC3339)),
+	}
 
+	modules := framework.Modules{}
 	for name, module := range cfg.Commands {
 		if len(module.Command) == 0 && module.Dir == "" && len(module.Env) == 0 {
 			modules[name] = &framework.NoopModule{DependsOn: module.DependsOn}
@@ -77,7 +81,7 @@ func main() {
 		modules[name] = &framework.CommandModule[any]{
 			Command:   module.Command,
 			Dir:       module.Dir,
-			Env:       module.Env,
+			Env:       append(commonEnv, module.Env...),
 			DependsOn: module.DependsOn,
 		}
 	}
