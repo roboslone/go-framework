@@ -94,5 +94,36 @@ Cleanable[State any]
 ```
 
 ## Command line tool
+There's a command line tool for running simple command modules (`framework.CommandModule`).
 
-TODO
+Install:
+
+```sh
+go install github.com/roboslone/go-framework/cmd/fexec@latest
+```
+
+Example config: [.fexec.yaml](https://github.com/roboslone/go-framework/blob/main/.fexec.yaml)
+
+Run:
+
+```sh
+fexec --help
+
+# Usage of fexec:
+#   -c string
+#         Path to config file (default ".fexec.yaml")
+# 
+# Available modules:
+#         ci
+#                 depends on lint, test
+#         install
+#                 $ go get
+#         lint
+#                 $ golangci-lint run --no-config .
+#                 depends on install
+#         test
+#                 $ go test ./...
+#                 depends on install
+#         pre-commit
+#                 depends on lint, test
+```
