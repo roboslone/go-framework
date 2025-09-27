@@ -67,8 +67,8 @@ func main() {
 		return
 	}
 
-	commonEnv := []string{
-		fmt.Sprintf("NOW=%s", time.Now().Format(time.RFC3339)),
+	if err = SetupCommonEnv(); err != nil {
+		log.Fatalf("setting up common env: %s", err)
 	}
 
 	modules := framework.Modules{}
@@ -81,7 +81,7 @@ func main() {
 		modules[name] = &framework.CommandModule[any]{
 			Command:   module.Command,
 			Dir:       module.Dir,
-			Env:       append(commonEnv, module.Env...),
+			Env:       module.Env,
 			DependsOn: module.DependsOn,
 		}
 	}
@@ -101,4 +101,15 @@ func ParseConfig(path string) (*CommandConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func SetupCommonEnv() error {
+	for k, v := range map[string]string{
+		"NOW": time.Now().Format(time.RFC3339),
+	} {
+		if err := os.Setenv(k, v); err != nil {
+			return fmt.Errorf("%q: %w", k, err)
+		}
+	}
+	return nil
 }
