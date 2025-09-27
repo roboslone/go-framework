@@ -10,12 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSanity(t *testing.T) {
+	mod := &TestModule{}
+
+	require.True(t, isDependent(mod))
+	require.True(t, isPreparable(mod))
+	require.True(t, isStartable(mod))
+	require.True(t, isAwaitable(mod))
+	require.True(t, isCleanable(mod))
+}
+
 func TestBuildTopology(t *testing.T) {
 	t.Run("cycle", func(t *testing.T) {
 		// a - b - a
-		app := framework.NewApplication(
+		app := framework.NewApplication[TestState](
 			t.Name(),
-			framework.Modules[TestState]{
+			framework.Modules{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("a"),
 			},
@@ -27,9 +37,9 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("self-dependency", func(t *testing.T) {
 		// a - a
-		app := framework.NewApplication(
+		app := framework.NewApplication[TestState](
 			t.Name(),
-			framework.Modules[TestState]{
+			framework.Modules{
 				"a": NewTestModule("a"),
 			},
 		)
@@ -40,9 +50,9 @@ func TestBuildTopology(t *testing.T) {
 
 	t.Run("linear", func(t *testing.T) {
 		// a - b - c
-		app := framework.NewApplication(
+		app := framework.NewApplication[TestState](
 			t.Name(),
-			framework.Modules[TestState]{
+			framework.Modules{
 				"a": NewTestModule("b"),
 				"b": NewTestModule("c"),
 				"c": NewTestModule(),
@@ -60,9 +70,9 @@ func TestBuildTopology(t *testing.T) {
 		// a     d
 		//  \   /
 		//    c
-		app := framework.NewApplication(
+		app := framework.NewApplication[TestState](
 			t.Name(),
-			framework.Modules[TestState]{
+			framework.Modules{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
@@ -81,9 +91,9 @@ func TestBuildTopology(t *testing.T) {
 		// a        e - f    i - j
 		//  \     /      \  /
 		//     b          g
-		app := framework.NewApplication(
+		app := framework.NewApplication[TestState](
 			t.Name(),
-			framework.Modules[TestState]{
+			framework.Modules{
 				"a": NewTestModule(),
 				"b": NewTestModule("a"),
 				"c": NewTestModule("a"),
@@ -104,9 +114,9 @@ func TestBuildTopology(t *testing.T) {
 }
 
 func TestInStageDependencies(t *testing.T) {
-	app := framework.NewApplication(
+	app := framework.NewApplication[TestState](
 		t.Name(),
-		framework.Modules[TestState]{
+		framework.Modules{
 			"a": &TestModule{
 				onPrepare: func(ctx context.Context, ts *TestState) error {
 					ts.Value = 42
@@ -152,9 +162,9 @@ func TestInStageDependencies(t *testing.T) {
 func TestErrors(t *testing.T) {
 	mFinite := &TestModule{}
 	mInfinite := &TestContextBoundModule{}
-	app := framework.NewApplication(
+	app := framework.NewApplication[TestState](
 		t.Name(),
-		framework.Modules[TestState]{
+		framework.Modules{
 			"finite":   mFinite,
 			"infinite": mInfinite,
 		},
@@ -222,7 +232,7 @@ func TestErrors(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	app := framework.NewApplication(t.Name(), framework.Modules[TestState]{
+	app := framework.NewApplication[TestState](t.Name(), framework.Modules{
 		"m": &TestModule{
 			onPrepare: func(ctx context.Context, _ *TestState) error {
 				assert.Equal(t, t.Name(), framework.GetApplicationName(ctx), "prepare")
@@ -250,10 +260,40 @@ func TestContext(t *testing.T) {
 }
 
 func TestCommandModule(t *testing.T) {
-	app := framework.NewApplication(t.Name(), framework.Modules[TestState]{
-		"cmd": &framework.CommandModule[TestState]{
-			Command: []string{"echo", "hello"},
-		},
+	mod := &framework.CommandModule[TestState]{
+		Command: []string{"echo", "hello"},
+	}
+
+	require.True(t, isDependent(mod))
+	require.False(t, isPreparable(mod))
+	require.True(t, isStartable(mod))
+	require.False(t, isAwaitable(mod))
+	require.False(t, isCleanable(mod))
+
+	app := framework.NewApplication[TestState](t.Name(), framework.Modules{
+		"cmd": mod,
 	})
 	require.NoError(t, app.Run(t.Context(), &TestState{}, "cmd"))
+}
+
+func TestNoopModule(t *testing.T) {
+	mod := &framework.NoopModule{}
+
+	require.True(t, isDependent(mod))
+	require.False(t, isPreparable(mod))
+	require.False(t, isStartable(mod))
+	require.False(t, isAwaitable(mod))
+	require.False(t, isCleanable(mod))
+}
+
+func TestInvalidModule(t *testing.T) {
+	app := framework.NewApplication[TestState](t.Name(), framework.Modules{"alfa": nil})
+	for _, err := range []error{
+		app.Check(),
+		app.Run(t.Context(), &TestState{}),
+		app.Run(t.Context(), &TestState{}, "alfa"),
+	} {
+		require.ErrorContains(t, err, "contains invalid modules")
+		require.ErrorContains(t, err, "alfa")
+	}
 }

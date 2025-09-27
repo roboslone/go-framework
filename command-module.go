@@ -12,15 +12,13 @@ import (
 )
 
 type CommandModule[State any] struct {
-	Module[State]
-
-	Command   []string
-	Dir       string
-	Env       []string
-	DependsOn []string
+	Command   []string `yaml:"command"`
+	Dir       string   `yaml:"dir"`
+	Env       []string `yaml:"env"`
+	DependsOn []string `yaml:"dependencies"`
 }
 
-func (m *CommandModule[State]) Start(ctx context.Context, s *State) error {
+func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
 	str := strings.Join(m.Command, " ")
 
 	args := make([]string, 0, len(m.Command)-1)

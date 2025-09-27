@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	framework "github.com/roboslone/go-framework"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -99,4 +100,29 @@ func TestMain(m *testing.M) {
 	zap.ReplaceGlobals(logger)
 
 	os.Exit(m.Run())
+}
+
+func isDependent(m any) bool {
+	_, ok := m.(framework.Dependent)
+	return ok
+}
+
+func isPreparable(m any) bool {
+	_, ok := m.(framework.Preparable[TestState])
+	return ok
+}
+
+func isStartable(m any) bool {
+	_, ok := m.(framework.Startable[TestState])
+	return ok
+}
+
+func isAwaitable(m any) bool {
+	_, ok := m.(framework.Awaitable[TestState])
+	return ok
+}
+
+func isCleanable(m any) bool {
+	_, ok := m.(framework.Cleanable[TestState])
+	return ok
 }

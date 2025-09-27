@@ -27,4 +27,4 @@ jobs:
                   imageName: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-devcontainer
                   cacheFrom: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-devcontainer
                   push: always
-                  runCmd: go run ./.tools ci
+                  runCmd: cd cmd/fexec && go install . && cd - && fexec ci

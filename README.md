@@ -22,9 +22,7 @@ type State {
 }
 
 // CounterIncrementer is a simple module, that increments given `Counter` each `Interval`.
-type CounterIncrementer struct {
-	framework.Module[State]
-}
+type CounterIncrementer struct {}
 
 func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
 	go func() {
@@ -35,9 +33,7 @@ func (*CounterIncrementer) Start(ctx context.Context, s *State) error {
 
 // CounterPrinter is a simple module, that prints given `Counter` each `Interval`.
 // It depends on CounterIncrementer.
-type CounterPrinter struct {
-	framework.Module[State]
-}
+type CounterPrinter struct {}
 
 func (*CounterPrinter) Start(ctx context.Context, s *State) error {
 	go func() {
@@ -67,14 +63,36 @@ func timedLoop(ctx context.Context, d time.Duration, fn func()) {
 }
 
 // App contains all available modules and their dependencies.
-var App = framework.NewApplication(
+var App = framework.NewApplication[State](
     "counter",
-    framework.Modules[State]{
+    framework.Modules{
         "incrementer": &CounterIncrementer{},
         "printer":     &CounterPrinter{},
     },
 )
 
 // Prepares and starts both `incrementer` and `printer`.
-App.Run(context.Background(), "printer")
+App.Run(context.Background(), &State{}, "printer")
+
+// To ensure all your application modules are valid (satisfy at least one module interface):
+func TestApp(t *testing.T) {
+	if err := App.Check(); err != nil {
+		t.Error(err)
+	}
+}
 ```
+
+## Module interfaces
+Available interfaces can be found in `module.go`:
+
+```go
+Dependent
+Preparable[State any]
+Startable[State any]
+Awaitable[State any]
+Cleanable[State any]
+```
+
+## Command line tool
+
+TODO

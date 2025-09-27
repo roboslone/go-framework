@@ -29,7 +29,8 @@ var (
 func (a *Application[State]) runStage(
 	e *ExecutionContext,
 	stage StageName,
-	payload func(string, ModuleInterface[State]) error,
+	shouldRun func(any) bool,
+	payload func(string, any) error,
 ) {
 	defer e.stages[stage].Release()
 
@@ -70,6 +71,10 @@ func (a *Application[State]) runStage(
 
 			// some dependency failed
 			if !e.err.Empty() {
+				return
+			}
+
+			if !shouldRun(a.modules[name]) {
 				return
 			}
 

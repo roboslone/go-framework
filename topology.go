@@ -44,7 +44,10 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 				return nil, fmt.Errorf("module not registered: %q", name)
 			}
 
-			t.DirectDependencies[name] = module.Dependencies(ctx)
+			if dependable, ok := module.(Dependent); ok {
+				t.DirectDependencies[name] = dependable.Dependencies(ctx)
+			}
+
 			for _, d := range t.DirectDependencies[name] {
 				if _, ok := t.DirectDependencies[d]; ok {
 					continue
