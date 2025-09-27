@@ -30,10 +30,11 @@ type CommandConfig struct {
 	Commands map[string]framework.CommandModule[any] `yaml:"commands"`
 }
 
-func (cfg *CommandConfig) PrintUsage() {
+func (cfg *CommandConfig) PrintUsage(configPath string) {
 	result := strings.Builder{}
 
-	result.WriteString("\nAvailable modules:\n")
+	result.WriteString(color.BlackString("\n@%s\n", configPath))
+	result.WriteString("Available modules:\n")
 
 	for name, module := range cfg.Commands {
 		result.WriteString(fmt.Sprintf("\t%s\n", name))
@@ -81,7 +82,7 @@ func main() {
 		log.Fatalf("reading config: %s", err)
 	}
 	if printUsage {
-		cfg.PrintUsage()
+		cfg.PrintUsage(*configPath)
 
 		if len(os.Args) == 1 {
 			os.Exit(1)
