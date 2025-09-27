@@ -1,0 +1,20 @@
+{
+    "id": "fexec",
+    "version": "1.0.0",
+    "name": "fexec",
+    "documentationURL": "http://github.com/roboslone/go-framework/tree/main/src/fexec",
+    "description": "fexec is a simple tool for running commands",
+    "options": {
+        "version": {
+            "default": "latest",
+            "description": "Select the version to install.",
+            "proposals": [
+                "latest"
+            ],
+            "type": "string"
+        }
+    },
+    "installsAfter": [
+        "ghcr.io/devcontainers/features/go:1"
+    ]
+}
