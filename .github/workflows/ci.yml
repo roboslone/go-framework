@@ -31,4 +31,4 @@ jobs:
                   cacheFrom: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-devcontainer
                   push: always
                   inheritEnv: true
-                  runCmd: cd cmd/fexec && go install . && cd - && fexec ci
+                  runCmd: fexec ci

@@ -102,6 +102,16 @@ Install:
 go install github.com/roboslone/go-framework/cmd/fexec@latest
 ```
 
+Or use as [devcontainers](https://containers.dev) feature:
+
+```json
+{
+	"features": {
+		"ghcr.io/roboslone/go-framework/fexec:1": {}
+	}
+}
+```
+
 Example config: [.fexec.yaml](https://github.com/roboslone/go-framework/blob/main/.fexec.yaml)
 
 Run:
