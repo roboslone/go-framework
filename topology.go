@@ -10,12 +10,11 @@ import (
 )
 
 type Topology struct {
-	RequestedModuleNames      []string
-	Graph                     *topsort.Graph[string]
-	OrderedModuleNames        []string
-	ReverseOrderedModuleNames []string
-	DirectDependencies        map[string][]string
-	FullDependencies          map[string][]string
+	RequestedModuleNames []string
+	Graph                *topsort.Graph[string]
+	OrderedModuleNames   []string
+	DirectDependencies   map[string][]string
+	FullDependencies     map[string][]string
 }
 
 func (a *Application[State]) BuildTopology(ctx context.Context, requested ...string) (*Topology, error) {
@@ -87,10 +86,6 @@ func (a *Application[State]) BuildTopology(ctx context.Context, requested ...str
 			}
 		}
 	}
-
-	t.ReverseOrderedModuleNames = make([]string, len(t.OrderedModuleNames))
-	copy(t.ReverseOrderedModuleNames, t.OrderedModuleNames)
-	slices.Reverse(t.ReverseOrderedModuleNames)
 
 	return t, nil
 }

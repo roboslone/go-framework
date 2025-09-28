@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,17 +38,16 @@ func (cfg *CommandConfig) PrintUsage(configPath string) {
 	result.WriteString(color.BlackString("\n@%s\n", configPath))
 	result.WriteString("Available modules:\n")
 
-	for name, module := range cfg.Commands {
+	for _, name := range slices.Sorted(maps.Keys(cfg.Commands)) {
 		result.WriteString(fmt.Sprintf("\t%s\n", name))
 
+		module := cfg.Commands[name]
 		if len(module.Command) > 0 {
 			result.WriteString(color.BlackString("\t\t$ %s\n", strings.Join(module.Command, " ")))
 		}
-
 		if module.Dir != "" {
 			result.WriteString(color.BlackString("\t\t@%s\n", module.Dir))
 		}
-
 		if len(module.DependsOn) > 0 {
 			result.WriteString(color.BlackString("\t\tdepends on %s\n", strings.Join(module.DependsOn, ", ")))
 		}
