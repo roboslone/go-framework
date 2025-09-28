@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -26,7 +27,10 @@ func NewApplication[State any](name string, modules Modules, options ...Applicat
 }
 
 func (a *Application[State]) Main() {
-	if err := a.Run(context.Background(), new(State), os.Args[1:]...); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	if err := a.Run(ctx, new(State), os.Args[1:]...); err != nil {
 		log.Fatal(err)
 	}
 }
