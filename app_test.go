@@ -3,6 +3,7 @@ package framework_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	framework "github.com/roboslone/go-framework"
@@ -296,4 +297,25 @@ func TestInvalidModule(t *testing.T) {
 		require.ErrorContains(t, err, "contains invalid modules")
 		require.ErrorContains(t, err, "alfa")
 	}
+}
+
+func TestGlob(t *testing.T) {
+	app := framework.NewApplication[TestState](t.Name(), framework.Modules{
+		"a1": NewTestModule(),
+		"a2": NewTestModule(),
+		"b1": NewTestModule(),
+		"b2": NewTestModule(),
+		"c1": NewTestModule(),
+		"c2": NewTestModule(),
+	})
+
+	names, err := app.Glob("a*")
+	require.NoError(t, err)
+	slices.Sort(names)
+	require.EqualValues(t, []string{"a1", "a2"}, names)
+
+	names, err = app.Glob("b*", "c*")
+	require.NoError(t, err)
+	slices.Sort(names)
+	require.EqualValues(t, []string{"b1", "b2", "c1", "c2"}, names)
 }

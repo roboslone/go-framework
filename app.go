@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -30,7 +31,12 @@ func (a *Application[State]) Main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := a.Run(ctx, new(State), os.Args[1:]...); err != nil {
+	modules, err := a.Glob(os.Args[1:]...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := a.Run(ctx, new(State), modules...); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -45,6 +51,24 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 		return err
 	}
 	return exec.Wait()
+}
+
+// Glob returns the names of all modules matching any of the provided patterns.
+// Patterns are matched using `filepath.Match`.
+func (a *Application[State]) Glob(patterns ...string) ([]string, error) {
+	result := mapset.NewSet[string]()
+	for _, pattern := range patterns {
+		for name := range a.modules {
+			match, err := filepath.Match(pattern, name)
+			if err != nil {
+				return nil, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+			}
+			if match {
+				result.Add(name)
+			}
+		}
+	}
+	return result.ToSlice(), nil
 }
 
 func (a *Application[State]) Start(ctx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
