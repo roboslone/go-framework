@@ -116,6 +116,8 @@ func main() {
 			Dir:       module.Dir,
 			Env:       module.Env,
 			DependsOn: module.DependsOn,
+			Verbose:   module.Verbose,
+			Live:      module.Live,
 		}
 
 		if verbose != nil {
