@@ -87,7 +87,7 @@ func main() {
 	if printUsage {
 		cfg.PrintUsage(*configPath)
 
-		if len(os.Args) == 1 {
+		if len(fs.Args()) == 1 {
 			os.Exit(1)
 		}
 
@@ -128,7 +128,7 @@ func main() {
 		modules[name] = m
 	}
 
-	framework.NewApplication[any]("fexec", modules).Main()
+	framework.NewApplication[any]("fexec", modules).Main(framework.WithArgs(fs.Args()...))
 }
 
 func ParseConfig(path string) (*CommandConfig, error) {

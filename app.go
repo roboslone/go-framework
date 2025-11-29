@@ -27,11 +27,30 @@ func NewApplication[State any](name string, modules Modules, options ...Applicat
 	}
 }
 
-func (a *Application[State]) Main() {
+type MainConfig struct {
+	Args []string
+}
+
+type MainOption func(*MainConfig)
+
+func WithArgs(args ...string) MainOption {
+	return func(mc *MainConfig) {
+		mc.Args = args
+	}
+}
+
+func (a *Application[State]) Main(opts ...MainOption) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	modules, err := a.Glob(os.Args[1:]...)
+	cfg := &MainConfig{
+		Args: os.Args[1:],
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	modules, err := a.Glob(cfg.Args...)
 	if err != nil {
 		log.Fatal(err)
 	}
