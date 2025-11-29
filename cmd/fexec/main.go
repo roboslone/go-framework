@@ -61,6 +61,8 @@ func main() {
 
 	wd := "."
 	configPath := fs.String("c", "", "Path to config file")
+	verbose := fs.Bool("v", false, "Show command descriptions & output for successful commands")
+	live := fs.Bool("l", false, "Show live output of all commands")
 
 	flagErr := fs.Parse(os.Args[1:])
 	printUsage := errors.Is(flagErr, flag.ErrHelp) || len(os.Args) == 1
@@ -109,12 +111,21 @@ func main() {
 			module.Dir = filepath.Join(wd, module.Dir)
 		}
 
-		modules[name] = &framework.CommandModule[any]{
+		m := &framework.CommandModule[any]{
 			Command:   module.Command,
 			Dir:       module.Dir,
 			Env:       module.Env,
 			DependsOn: module.DependsOn,
 		}
+
+		if verbose != nil {
+			m.Verbose = *verbose
+		}
+		if live != nil {
+			m.Live = *live
+		}
+
+		modules[name] = m
 	}
 
 	framework.NewApplication[any]("fexec", modules).Main()

@@ -58,6 +58,8 @@ func (a *Application[State]) Run(ctx context.Context, s *State, modules ...strin
 func (a *Application[State]) Glob(patterns ...string) ([]string, error) {
 	result := mapset.NewSet[string]()
 	for _, pattern := range patterns {
+		var matched bool
+
 		for name := range a.modules {
 			match, err := filepath.Match(pattern, name)
 			if err != nil {
@@ -65,7 +67,12 @@ func (a *Application[State]) Glob(patterns ...string) ([]string, error) {
 			}
 			if match {
 				result.Add(name)
+				matched = true
 			}
+		}
+
+		if !matched {
+			return nil, fmt.Errorf("pattern didn't match any commands: %q", pattern)
 		}
 	}
 	return result.ToSlice(), nil

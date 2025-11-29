@@ -16,6 +16,8 @@ type CommandModule[State any] struct {
 	Dir       string   `yaml:"dir"`
 	Env       []string `yaml:"env"`
 	DependsOn []string `yaml:"dependencies"`
+	Verbose   bool     `yaml:"verbose"`
+	Live      bool     `yaml:"live"`
 }
 
 func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
@@ -30,8 +32,27 @@ func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
 	cmd.Dir = m.Dir
 	cmd.Env = append(os.Environ(), m.Env...)
 
+	if m.Verbose {
+		fmt.Printf(
+			"%s %s %s\n",
+			color.BlueString("↪︎"),
+			GetModuleName(ctx),
+			color.BlackString("starting..."),
+		)
+	}
+
 	start := time.Now()
-	out, err := cmd.CombinedOutput()
+
+	var out []byte
+	var err error
+	if m.Live {
+		cmd.Stdout = NewPrefixedWriter(os.Stdout, color.BlackString("[%s] ", GetModuleName(ctx)))
+		cmd.Stderr = NewPrefixedWriter(os.Stderr, color.BlackString("[%s] ", GetModuleName(ctx)))
+		err = cmd.Run()
+	} else {
+		out, err = cmd.CombinedOutput()
+	}
+
 	duration := time.Since(start).Round(time.Millisecond).String()
 
 	if err != nil {
@@ -50,18 +71,26 @@ func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
 		)
 	}
 
-	color.Black("$ %s", str)
+	if m.Verbose {
+		color.Black("$ %s", str)
+	}
 
 	if err != nil {
-		fmt.Println()
+		if !m.Verbose {
+			color.Black("$ %s", str)
+		}
 		color.Red(err.Error())
 		fmt.Println(string(out))
 	} else if len(out) > 0 {
-		fmt.Println()
-		color.Black(string(out))
+		if m.Verbose {
+			fmt.Println()
+			color.Black(string(out))
+		}
 	}
 
-	fmt.Println()
+	if m.Verbose {
+		fmt.Println()
+	}
 
 	return err
 }
