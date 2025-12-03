@@ -5,6 +5,10 @@ import (
 	"io"
 )
 
+var (
+	nl = []byte("\n")
+)
+
 type PrefixedWriter struct {
 	w      io.Writer
 	prefix []byte
@@ -15,10 +19,11 @@ func NewPrefixedWriter(w io.Writer, prefix string) *PrefixedWriter {
 }
 
 func (w *PrefixedWriter) Write(p []byte) (int, error) {
-	for line := range bytes.SplitSeq(p, []byte("\n")) {
-		msg := make([]byte, len(line)+len(w.prefix))
+	for line := range bytes.SplitSeq(p, nl) {
+		msg := make([]byte, len(line)+len(w.prefix)+len(nl))
 		msg = append(msg, w.prefix...)
 		msg = append(msg, line...)
+		msg = append(msg, nl...)
 		if _, err := w.w.Write(msg); err != nil {
 			return 0, err
 		}
