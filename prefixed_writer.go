@@ -20,6 +20,10 @@ func NewPrefixedWriter(w io.Writer, prefix string) *PrefixedWriter {
 
 func (w *PrefixedWriter) Write(p []byte) (int, error) {
 	for line := range bytes.SplitSeq(p, nl) {
+		if len(line) == 0 {
+			continue
+		}
+
 		msg := make([]byte, len(line)+len(w.prefix)+len(nl))
 		msg = append(msg, w.prefix...)
 		msg = append(msg, line...)
