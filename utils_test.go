@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	framework "github.com/roboslone/go-framework"
+	framework "github.com/roboslone/go-framework/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

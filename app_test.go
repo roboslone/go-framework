@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	framework "github.com/roboslone/go-framework"
+	framework "github.com/roboslone/go-framework/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

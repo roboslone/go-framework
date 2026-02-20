@@ -1,4 +1,4 @@
-module github.com/roboslone/go-framework
+module github.com/roboslone/go-framework/v2
 
 go 1.25
 

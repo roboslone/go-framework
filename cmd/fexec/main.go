@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/roboslone/go-framework"
+	"github.com/roboslone/go-framework/v2"
 	"gopkg.in/yaml.v3"
 )
 
