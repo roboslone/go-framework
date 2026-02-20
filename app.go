@@ -97,9 +97,9 @@ func (a *Application[State]) Glob(patterns ...string) ([]string, error) {
 	return result.ToSlice(), nil
 }
 
-func (a *Application[State]) Start(ctx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithCancel(applicationContext(ctx, a.name))
+func (a *Application[State]) Start(rootCtx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
+	rootCtx = applicationContext(rootCtx, a.name)
+	ctx, cancel := context.WithCancel(rootCtx)
 
 	zf := []zap.Field{
 		zap.String("framework.application", a.name),
@@ -173,9 +173,7 @@ func (a *Application[State]) Start(ctx context.Context, s *State, modules ...str
 				return ok
 			},
 			func(name string, m any) error {
-				ctx := applicationContext(context.Background(), a.name)
-				ctx = moduleContext(ctx, name)
-				return m.(Cleanable[State]).Cleanup(ctx, s)
+				return m.(Cleanable[State]).Cleanup(moduleContext(rootCtx, name), s)
 			},
 		)
 	}()
