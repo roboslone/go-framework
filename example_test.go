@@ -81,7 +81,7 @@ func ExampleApplication() {
 	// Ensure each module satisfies at least one module interface.
 	fmt.Println("check error:", app.Check())
 
-	fmt.Println("run error:", app.Run(context.Background(), state, "receiver"))
+	fmt.Println("run error:", app.Run(context.Background(), context.Background(), state, "receiver"))
 	// Output: check error: <nil>
 	// 0
 	// 1

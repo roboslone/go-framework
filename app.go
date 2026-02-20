@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"go.uber.org/zap"
@@ -28,7 +29,8 @@ func NewApplication[State any](name string, modules Modules, options ...Applicat
 }
 
 type MainConfig struct {
-	Args []string
+	Args           []string
+	CleanupTimeout *time.Duration
 }
 
 type MainOption func(*MainConfig)
@@ -36,6 +38,12 @@ type MainOption func(*MainConfig)
 func WithArgs(args ...string) MainOption {
 	return func(mc *MainConfig) {
 		mc.Args = args
+	}
+}
+
+func WithCleanupTimeout(timeout time.Duration) MainOption {
+	return func(mc *MainConfig) {
+		mc.CleanupTimeout = &timeout
 	}
 }
 
@@ -50,22 +58,29 @@ func (a *Application[State]) Main(opts ...MainOption) {
 		opt(cfg)
 	}
 
+	cleanupCtx := context.Background()
+	if cfg.CleanupTimeout != nil {
+		var cancelCleanup context.CancelFunc
+		cleanupCtx, cancelCleanup = context.WithTimeout(context.Background(), *cfg.CleanupTimeout)
+		defer cancelCleanup()
+	}
+
 	modules, err := a.Glob(cfg.Args...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := a.Run(ctx, new(State), modules...); err != nil {
+	if err := a.Run(ctx, cleanupCtx, new(State), modules...); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func (a *Application[State]) Run(ctx context.Context, s *State, modules ...string) error {
+func (a *Application[State]) Run(rootCtx, cleanupCtx context.Context, s *State, modules ...string) error {
 	if err := a.Check(); err != nil {
 		return err
 	}
 
-	exec, err := a.Start(ctx, s, modules...)
+	exec, err := a.Start(rootCtx, cleanupCtx, s, modules...)
 	if err != nil {
 		return err
 	}
@@ -97,8 +112,10 @@ func (a *Application[State]) Glob(patterns ...string) ([]string, error) {
 	return result.ToSlice(), nil
 }
 
-func (a *Application[State]) Start(rootCtx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
+func (a *Application[State]) Start(rootCtx, cleanupCtx context.Context, s *State, modules ...string) (*ExecutionContext, error) {
 	rootCtx = applicationContext(rootCtx, a.name)
+	cleanupCtx = applicationContext(cleanupCtx, a.name)
+
 	ctx, cancel := context.WithCancel(rootCtx)
 
 	zf := []zap.Field{
@@ -173,7 +190,7 @@ func (a *Application[State]) Start(rootCtx context.Context, s *State, modules ..
 				return ok
 			},
 			func(name string, m any) error {
-				return m.(Cleanable[State]).Cleanup(moduleContext(rootCtx, name), s)
+				return m.(Cleanable[State]).Cleanup(moduleContext(cleanupCtx, name), s)
 			},
 		)
 	}()

@@ -157,7 +157,7 @@ func TestInStageDependencies(t *testing.T) {
 			},
 		},
 	)
-	require.NoError(t, app.Run(t.Context(), &TestState{}, "b"))
+	require.NoError(t, app.Run(t.Context(), t.Context(), &TestState{}, "b"))
 }
 
 func TestErrors(t *testing.T) {
@@ -173,27 +173,27 @@ func TestErrors(t *testing.T) {
 
 	t.Run("finite", func(t *testing.T) {
 		t.Run("none", func(t *testing.T) {
-			require.NoError(t, app.Run(t.Context(), &TestState{}, "finite"))
+			require.NoError(t, app.Run(t.Context(), t.Context(), &TestState{}, "finite"))
 		})
 
 		t.Run("prepare", func(t *testing.T) {
 			mFinite.SetErrors(fmt.Errorf("prepare error"), nil, nil, nil)
-			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "prepare error")
+			require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "finite"), "prepare error")
 		})
 
 		t.Run("start", func(t *testing.T) {
 			mFinite.SetErrors(nil, fmt.Errorf("start error"), nil, nil)
-			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "start error")
+			require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "finite"), "start error")
 		})
 
 		t.Run("wait", func(t *testing.T) {
 			mFinite.SetErrors(nil, nil, fmt.Errorf("wait error"), nil)
-			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "wait error")
+			require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "finite"), "wait error")
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
 			mFinite.SetErrors(nil, nil, nil, fmt.Errorf("cleanup error"))
-			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "finite"), "cleanup error")
+			require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "finite"), "cleanup error")
 		})
 	})
 
@@ -201,33 +201,33 @@ func TestErrors(t *testing.T) {
 		t.Run("none", func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			require.NoError(t, app.Run(ctx, &TestState{}, "infinite"))
+			require.NoError(t, app.Run(ctx, ctx, &TestState{}, "infinite"))
 		})
 
 		t.Run("prepare", func(t *testing.T) {
 			mInfinite.SetErrors(fmt.Errorf("prepare error"), nil, nil, nil)
-			require.ErrorContains(t, app.Run(t.Context(), &TestState{}, "infinite"), "prepare error")
+			require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "infinite"), "prepare error")
 		})
 
 		t.Run("start", func(t *testing.T) {
 			mInfinite.SetErrors(nil, fmt.Errorf("start error"), nil, nil)
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "start error")
+			require.ErrorContains(t, app.Run(ctx, ctx, &TestState{}, "infinite"), "start error")
 		})
 
 		t.Run("wait", func(t *testing.T) {
 			mInfinite.SetErrors(nil, nil, fmt.Errorf("wait error"), nil)
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "wait error")
+			require.ErrorContains(t, app.Run(ctx, ctx, &TestState{}, "infinite"), "wait error")
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
 			mInfinite.SetErrors(nil, nil, nil, fmt.Errorf("cleanup error"))
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			require.ErrorContains(t, app.Run(ctx, &TestState{}, "infinite"), "cleanup error")
+			require.ErrorContains(t, app.Run(ctx, ctx, &TestState{}, "infinite"), "cleanup error")
 		})
 	})
 }
@@ -257,7 +257,7 @@ func TestContext(t *testing.T) {
 			},
 		},
 	})
-	require.NoError(t, app.Run(t.Context(), &TestState{}, "m"))
+	require.NoError(t, app.Run(t.Context(), t.Context(), &TestState{}, "m"))
 }
 
 func TestCommandModule(t *testing.T) {
@@ -274,7 +274,7 @@ func TestCommandModule(t *testing.T) {
 	app := framework.NewApplication[TestState](t.Name(), framework.Modules{
 		"cmd": mod,
 	})
-	require.NoError(t, app.Run(t.Context(), &TestState{}, "cmd"))
+	require.NoError(t, app.Run(t.Context(), t.Context(), &TestState{}, "cmd"))
 }
 
 func TestNoopModule(t *testing.T) {
@@ -291,8 +291,8 @@ func TestInvalidModule(t *testing.T) {
 	app := framework.NewApplication[TestState](t.Name(), framework.Modules{"alfa": nil})
 	for _, err := range []error{
 		app.Check(),
-		app.Run(t.Context(), &TestState{}),
-		app.Run(t.Context(), &TestState{}, "alfa"),
+		app.Run(t.Context(), t.Context(), &TestState{}),
+		app.Run(t.Context(), t.Context(), &TestState{}, "alfa"),
 	} {
 		require.ErrorContains(t, err, "contains invalid modules")
 		require.ErrorContains(t, err, "alfa")
