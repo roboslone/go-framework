@@ -112,12 +112,13 @@ func main() {
 		}
 
 		m := &framework.CommandModule[any]{
-			Command:   module.Command,
-			Dir:       module.Dir,
-			Env:       module.Env,
-			DependsOn: module.DependsOn,
-			Verbose:   module.Verbose,
-			Live:      module.Live,
+			Command:       module.Command,
+			Dir:           module.Dir,
+			Env:           module.Env,
+			DependsOn:     module.DependsOn,
+			ErrorOnOutput: module.ErrorOnOutput,
+			Verbose:       module.Verbose,
+			Live:          module.Live,
 		}
 
 		if verbose != nil {

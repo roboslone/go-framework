@@ -277,6 +277,24 @@ func TestCommandModule(t *testing.T) {
 	require.NoError(t, app.Run(t.Context(), t.Context(), &TestState{}, "cmd"))
 }
 
+func TestCommandModule_ErrorOnOutput(t *testing.T) {
+	mod := &framework.CommandModule[TestState]{
+		Command:       []string{"echo", "hello"},
+		ErrorOnOutput: true,
+	}
+
+	require.True(t, isDependent(mod))
+	require.False(t, isPreparable(mod))
+	require.True(t, isStartable(mod))
+	require.False(t, isAwaitable(mod))
+	require.False(t, isCleanable(mod))
+
+	app := framework.NewApplication[TestState](t.Name(), framework.Modules{
+		"cmd": mod,
+	})
+	require.ErrorContains(t, app.Run(t.Context(), t.Context(), &TestState{}, "cmd"), "unexpected output")
+}
+
 func TestNoopModule(t *testing.T) {
 	mod := &framework.NoopModule{}
 

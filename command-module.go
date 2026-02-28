@@ -18,6 +18,10 @@ type CommandModule[State any] struct {
 	DependsOn []string `yaml:"dependencies"`
 	Verbose   bool     `yaml:"verbose"`
 	Live      bool     `yaml:"live"`
+
+	// ErrorOnOutput controls whether the module should fail if any output was produced by the command.
+	// This can be helpful for tools like `deadcode`.
+	ErrorOnOutput bool `yaml:"error_on_output"`
 }
 
 func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
@@ -54,6 +58,10 @@ func (m *CommandModule[State]) Start(ctx context.Context, _ *State) error {
 	}
 
 	duration := time.Since(start).Round(time.Millisecond).String()
+
+	if m.ErrorOnOutput && err == nil && len(out) > 0 {
+		err = fmt.Errorf("unexpected output (%d bytes)", len(out))
+	}
 
 	if err != nil {
 		fmt.Printf(
