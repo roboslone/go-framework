@@ -10,7 +10,7 @@ There's a command line tool for running simple command modules (`framework.Comma
 Install:
 
 ```sh
-go install github.com/roboslone/go-framework/cmd/fexec@latest
+go install github.com/roboslone/go-framework/v2/cmd/fexec@latest
 ```
 
 Or use as [devcontainers](https://containers.dev) feature:
